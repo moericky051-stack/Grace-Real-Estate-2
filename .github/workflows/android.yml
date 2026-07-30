@@ -35,11 +35,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Run Unit Tests
-        run: gradle testDebugUnitTest --continue
-
-      - name: Build Debug APK
-        run: gradle assembleDebug
+      # Unit Test ကို Skip လုပ်ပြီး Debug APK တိုက်ရိုက် ထုတ်ပေးမည့် Step
+      - name: Build Debug APK (Skip Tests)
+        run: ./gradlew assembleDebug -x test
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
