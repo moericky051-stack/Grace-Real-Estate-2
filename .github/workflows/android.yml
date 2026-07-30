@@ -35,7 +35,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # Corrupt ဖြစ်နေသော gradle-wrapper.jar ကို ကျော်ရန် gradle command ကို တိုက်ရိုက်သုံးပြီး Build လုပ်ခြင်း
+      # Keystore မရှိလို့ error တက်ခြင်းကို ဖြေရှင်းရန် debug.keystore အသစ် အလိုအလျောက် ထုတ်ပေးသည့် Step
+      - name: Generate Dummy Debug Keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+      # Build Debug APK
       - name: Build Debug APK (Skip Tests)
         run: gradle assembleDebug -x test
 
