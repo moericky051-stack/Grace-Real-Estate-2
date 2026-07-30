@@ -31,11 +31,8 @@ jobs:
           keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
         fi
 
-    - name: Make Gradle Executable
-      run: chmod +x gradlew
-
-    - name: Skip Unit Tests and Build Debug APK
-      run: ./gradlew assembleDebug -x test -x compileDebugUnitTestKotlin
+    - name: Build Debug APK (Direct Gradle)
+      run: gradle assembleDebug -x test -x compileDebugUnitTestKotlin
 
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
