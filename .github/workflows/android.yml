@@ -35,9 +35,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # Unit Test ကို Skip လုပ်ပြီး Debug APK တိုက်ရိုက် ထုတ်ပေးမည့် Step
+      # Corrupt ဖြစ်နေသော gradle-wrapper.jar ကို ကျော်ရန် gradle command ကို တိုက်ရိုက်သုံးပြီး Build လုပ်ခြင်း
       - name: Build Debug APK (Skip Tests)
-        run: ./gradlew assembleDebug -x test
+        run: gradle assembleDebug -x test
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
