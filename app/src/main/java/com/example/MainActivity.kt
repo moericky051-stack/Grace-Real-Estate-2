@@ -226,8 +226,8 @@ fun RealEstateApp(
                                 scope.launch { snackbarHostState.showSnackbar("အကောင့်ဝင်ရောက်ခြင်း အောင်မြင်ပါသည်။") }
                             }, onError)
                         },
-                        onSignUp = { email, pass, name, phone, agency, onError ->
-                            viewModel.signUp(email, pass, name, phone, agency, {
+                        onSignUp = { email, pass, name, phone, agency, photoUri, onError ->
+                            viewModel.signUp(email, pass, name, phone, agency, photoUri, {
                                 scope.launch { snackbarHostState.showSnackbar("အကောင့်သစ် အောင်မြင်စွာ ပြုလုပ်ပြီးပါပြီ။") }
                             }, onError)
                         },
@@ -269,11 +269,17 @@ fun RealEstateApp(
                                 navController.popBackStack()
                             }, onError)
                         },
-                        onSignUp = { email, pass, name, phone, agency, onError ->
-                            viewModel.signUp(email, pass, name, phone, agency, {
+                        onSignUp = { email, pass, name, phone, agency, photoUri, onError ->
+                            viewModel.signUp(email, pass, name, phone, agency, photoUri, {
                                 scope.launch { snackbarHostState.showSnackbar("အကောင့်သစ် အောင်မြင်စွာ ပြုလုပ်ပြီးပါပြီ။") }
                                 navController.popBackStack()
                             }, onError)
+                        },
+                        onGoogleSignIn = { onError ->
+                            viewModel.signInWithGoogle(onSuccess = {
+                                scope.launch { snackbarHostState.showSnackbar("Google အကောင့်ဖြင့် အောင်မြင်စွာ ဝင်ရောက်လိုက်ပါပြီ။") }
+                                navController.popBackStack()
+                            }, onError = onError)
                         },
                         onSignInAsDemo = {
                             viewModel.signInAsDemoUser {

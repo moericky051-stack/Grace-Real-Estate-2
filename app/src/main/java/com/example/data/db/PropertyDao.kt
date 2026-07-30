@@ -26,6 +26,9 @@ interface PropertyDao {
     @Query("SELECT COUNT(*) FROM properties WHERE title = :title AND agentPhone = :phone")
     suspend fun countByTitleAndPhone(title: String, phone: String): Int
 
+    @Query("SELECT * FROM properties WHERE title = :title AND agentPhone = :phone LIMIT 1")
+    suspend fun getPropertyByTitleAndPhone(title: String, phone: String): Property?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProperty(property: Property): Long
 

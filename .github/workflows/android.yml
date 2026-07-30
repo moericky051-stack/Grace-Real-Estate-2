@@ -35,14 +35,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # Keystore မရှိလို့ error တက်ခြင်းကို ဖြေရှင်းရန် debug.keystore အသစ် အလိုအလျောက် ထုတ်ပေးသည့် Step
-      - name: Generate Dummy Debug Keystore
-        run: |
-          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+      - name: Run Unit Tests
+        run: gradle testDebugUnitTest --continue
 
-      # Build Debug APK
-      - name: Build Debug APK (Skip Tests)
-        run: gradle assembleDebug -x test
+      - name: Build Debug APK
+        run: gradle assembleDebug
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4

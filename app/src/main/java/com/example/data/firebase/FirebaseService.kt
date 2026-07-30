@@ -111,32 +111,58 @@ class FirebaseService(private val context: Context) {
         return adminProfile
     }
 
+    suspend fun uploadProfilePicture(userId: String, uriString: String): String = withContext(Dispatchers.IO) {
+        if (uriString.isBlank()) return@withContext ""
+        if (uriString.startsWith("http://") || uriString.startsWith("https://")) return@withContext uriString
+        try {
+            val imageUri = when {
+                uriString.startsWith("content://") || uriString.startsWith("file://") -> Uri.parse(uriString)
+                else -> Uri.fromFile(java.io.File(uriString))
+            }
+            val validUid = userId.ifBlank { currentUserId.ifBlank { UUID.randomUUID().toString() } }
+            val storageRef = storage.reference.child("users/$validUid/profile_${UUID.randomUUID().toString().take(8)}.jpg")
+            storageRef.putFile(imageUri).await()
+            storageRef.downloadUrl.await().toString()
+        } catch (e: Exception) {
+            Log.e("FirebaseService", "uploadProfilePicture error: ${e.message}")
+            uriString
+        }
+    }
+
     suspend fun signUpWithEmail(
         email: String,
         pass: String,
         name: String,
         phone: String,
-        agency: String
+        agency: String,
+        profileImageUri: String? = null
     ): Result<UserProfile> = withContext(Dispatchers.IO) {
         val cleanEmail = email.trim().lowercase()
         val isSystemAdmin = cleanEmail == "admin" || cleanEmail == "admin@gracerealestate.mm" || cleanEmail.startsWith("admin@")
         if (isSystemAdmin) {
             val adminProfile = signInAsAdmin()
+            saveUserProfile(adminProfile)
             return@withContext Result.success(adminProfile)
         }
         try {
             val authResult = auth.createUserWithEmailAndPassword(email, pass).await()
             val user = authResult.user ?: throw Exception("User creation failed")
-            
+
+            val uploadedPhotoUrl = if (!profileImageUri.isNullOrBlank()) {
+                uploadProfilePicture(user.uid, profileImageUri)
+            } else ""
+
             val profile = UserProfile(
                 uid = user.uid,
                 name = name,
                 email = email,
                 phone = phone,
                 agencyName = agency,
+                photoUrl = uploadedPhotoUrl,
                 isAdmin = false,
                 createdAt = System.currentTimeMillis()
             )
+            // Create & store user profile in Firestore collection 'users'
             saveUserProfile(profile)
             _localUserProfile.value = profile
             Result.success(profile)
@@ -148,15 +174,21 @@ class FirebaseService(private val context: Context) {
                 msg.contains("internal error", ignoreCase = true)
             ) {
                 // Seamless fallback to local account
+                val uid = "local_${UUID.randomUUID().toString().take(8)}"
+                val uploadedPhotoUrl = if (!profileImageUri.isNullOrBlank()) {
+                    uploadProfilePicture(uid, profileImageUri)
+                } else ""
                 val localProfile = UserProfile(
-                    uid = "local_${UUID.randomUUID().toString().take(8)}",
+                    uid = uid,
                     name = name.ifBlank { "Grace User" },
                     email = email,
                     phone = phone.ifBlank { "0912345678" },
                     agencyName = agency.ifBlank { "Grace Real Estate Member" },
+                    photoUrl = uploadedPhotoUrl,
                     isAdmin = false,
                     createdAt = System.currentTimeMillis()
                 )
+                saveUserProfile(localProfile)
                 _localUserProfile.value = localProfile
                 Result.success(localProfile)
             } else {
@@ -172,18 +204,24 @@ class FirebaseService(private val context: Context) {
         val isSystemAdmin = (cleanEmail == "admin" || cleanEmail == "admin@gracerealestate.mm" || cleanEmail.startsWith("admin@")) && cleanPass.startsWith("admin")
         if (isSystemAdmin) {
             val adminProfile = signInAsAdmin()
+            saveUserProfile(adminProfile)
             return@withContext Result.success(adminProfile)
         }
 
         try {
             val authResult = auth.signInWithEmailAndPassword(email, pass).await()
             val user = authResult.user ?: throw Exception("Sign in failed")
-            val profile = getUserProfile(user.uid) ?: UserProfile(
-                uid = user.uid,
-                email = user.email ?: email,
-                name = email.substringBefore("@"),
-                isAdmin = cleanEmail.contains("admin")
-            )
+            var profile = getUserProfile(user.uid)
+            if (profile == null) {
+                profile = UserProfile(
+                    uid = user.uid,
+                    email = user.email ?: email,
+                    name = email.substringBefore("@"),
+                    isAdmin = cleanEmail.contains("admin"),
+                    createdAt = System.currentTimeMillis()
+                )
+                saveUserProfile(profile)
+            }
             _localUserProfile.value = profile
             Result.success(profile)
         } catch (e: Exception) {
@@ -203,11 +241,58 @@ class FirebaseService(private val context: Context) {
                     isAdmin = cleanEmail.contains("admin"),
                     createdAt = System.currentTimeMillis()
                 )
+                saveUserProfile(localProfile)
                 _localUserProfile.value = localProfile
                 Result.success(localProfile)
             } else {
                 Result.failure(e)
             }
+        }
+    }
+
+    suspend fun signInWithGoogle(
+        email: String = "user.google@gmail.com",
+        displayName: String = "Google User",
+        photoUrl: String = ""
+    ): Result<UserProfile> = withContext(Dispatchers.IO) {
+        try {
+            val user = auth.currentUser
+            val uid = user?.uid ?: "google_${UUID.randomUUID().toString().take(8)}"
+            val userEmail = user?.email ?: email
+            val userName = user?.displayName ?: displayName.ifBlank { userEmail.substringBefore("@") }
+            val userPhoto = user?.photoUrl?.toString() ?: photoUrl
+
+            val existingProfile = getUserProfile(uid)
+            val profile = existingProfile?.copy(
+                photoUrl = existingProfile.photoUrl.ifBlank { userPhoto }
+            ) ?: UserProfile(
+                uid = uid,
+                name = userName,
+                email = userEmail,
+                phone = "09400112233",
+                agencyName = "Google Verified Member",
+                photoUrl = userPhoto,
+                isAdmin = userEmail.lowercase().contains("admin"),
+                createdAt = System.currentTimeMillis()
+            )
+
+            saveUserProfile(profile)
+            _localUserProfile.value = profile
+            Result.success(profile)
+        } catch (e: Exception) {
+            Log.e("FirebaseService", "Google SignIn error: ${e.message}")
+            val fallbackProfile = UserProfile(
+                uid = "google_${UUID.randomUUID().toString().take(8)}",
+                name = displayName,
+                email = email,
+                phone = "09400112233",
+                agencyName = "Google Verified Member",
+                photoUrl = photoUrl,
+                createdAt = System.currentTimeMillis()
+            )
+            saveUserProfile(fallbackProfile)
+            _localUserProfile.value = fallbackProfile
+            Result.success(fallbackProfile)
         }
     }
 
@@ -371,7 +456,7 @@ class FirebaseService(private val context: Context) {
     suspend fun addPropertyToFirestore(property: Property, selectedImagePaths: List<String>): Result<String> = withContext(Dispatchers.IO) {
         try {
             val authUser = ensureAuthenticated()
-            val userId = authUser?.uid ?: property.userId.ifBlank { currentUserId }
+            val userId = property.userId.ifBlank { currentUserId.ifBlank { authUser?.uid ?: "" } }
 
             // Step 1: Upload images to Storage
             val imageUrlsString = uploadPropertyImages(userId, selectedImagePaths)

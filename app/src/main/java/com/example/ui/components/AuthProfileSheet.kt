@@ -36,7 +36,7 @@ fun AuthProfileSheet(
     myListings: List<Property>,
     onDismiss: () -> Unit,
     onSignIn: (email: String, pass: String, onError: (String) -> Unit) -> Unit,
-    onSignUp: (email: String, pass: String, name: String, phone: String, agency: String, onError: (String) -> Unit) -> Unit,
+    onSignUp: (email: String, pass: String, name: String, phone: String, agency: String, profileImageUri: String?, onError: (String) -> Unit) -> Unit,
     onUpdateProfile: (name: String, phone: String, agency: String, onError: (String) -> Unit) -> Unit,
     onSignOut: () -> Unit,
     onPropertyClick: (Long) -> Unit,
@@ -151,9 +151,9 @@ fun AuthProfileSheet(
                     }
                 )
                 "SIGN_UP" -> SignUpForm(
-                    onSignUp = { email, pass, name, phone, agency ->
+                    onSignUp = { email, pass, name, phone, agency, photo ->
                         errorMessage = ""
-                        onSignUp(email, pass, name, phone, agency) { err -> errorMessage = err }
+                        onSignUp(email, pass, name, phone, agency, photo) { err -> errorMessage = err }
                     }
                 )
                 "PROFILE" -> ProfileView(
@@ -262,13 +262,14 @@ private fun SignInForm(
 
 @Composable
 private fun SignUpForm(
-    onSignUp: (email: String, pass: String, name: String, phone: String, agency: String) -> Unit
+    onSignUp: (email: String, pass: String, name: String, phone: String, agency: String, profileImageUri: String?) -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var agency by remember { mutableStateOf("") }
+    var profileImageUri by remember { mutableStateOf<String?>(null) }
     var isPassVisible by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -332,7 +333,7 @@ private fun SignUpForm(
         )
 
         Button(
-            onClick = { onSignUp(email.trim(), password.trim(), name.trim(), phone.trim(), agency.trim()) },
+            onClick = { onSignUp(email.trim(), password.trim(), name.trim(), phone.trim(), agency.trim(), profileImageUri) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),

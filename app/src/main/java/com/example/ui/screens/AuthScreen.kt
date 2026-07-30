@@ -31,6 +31,10 @@ import com.example.ui.theme.RealEstateGold
 import com.example.ui.theme.RealEstateNavy
 import com.example.ui.theme.RealEstateRed
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.ui.components.PropertyImage
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuthScreen(
@@ -39,7 +43,8 @@ fun AuthScreen(
     myListings: List<Property>,
     onBackClick: () -> Unit,
     onSignIn: (email: String, pass: String, onError: (String) -> Unit) -> Unit,
-    onSignUp: (email: String, pass: String, name: String, phone: String, agency: String, onError: (String) -> Unit) -> Unit,
+    onSignUp: (email: String, pass: String, name: String, phone: String, agency: String, profileImageUri: String?, onError: (String) -> Unit) -> Unit,
+    onGoogleSignIn: (((onError: (String) -> Unit) -> Unit))? = null,
     onSignInAsDemo: (() -> Unit)? = null,
     onUpdateProfile: (name: String, phone: String, agency: String, onError: (String) -> Unit) -> Unit,
     onSignOut: () -> Unit,
@@ -205,13 +210,25 @@ fun AuthScreen(
                                     errorMessage = ""
                                     onSignIn(email, pass) { err -> errorMessage = err }
                                 },
+                                onGoogleSignIn = if (onGoogleSignIn != null) {
+                                    {
+                                        errorMessage = ""
+                                        onGoogleSignIn { err -> errorMessage = err }
+                                    }
+                                } else null,
                                 onSignInAsDemo = onSignInAsDemo
                             )
                             "SIGN_UP" -> FullScreenSignUpForm(
-                                onSignUp = { email, pass, name, phone, agency ->
+                                onSignUp = { email, pass, name, phone, agency, photoUri ->
                                     errorMessage = ""
-                                    onSignUp(email, pass, name, phone, agency) { err -> errorMessage = err }
+                                    onSignUp(email, pass, name, phone, agency, photoUri) { err -> errorMessage = err }
                                 },
+                                onGoogleSignIn = if (onGoogleSignIn != null) {
+                                    {
+                                        errorMessage = ""
+                                        onGoogleSignIn { err -> errorMessage = err }
+                                    }
+                                } else null,
                                 onSignInAsDemo = onSignInAsDemo
                             )
                             "PROFILE" -> FullScreenProfileView(
@@ -284,6 +301,7 @@ private fun TabButton(
 @Composable
 private fun FullScreenSignInForm(
     onSignIn: (email: String, pass: String) -> Unit,
+    onGoogleSignIn: (() -> Unit)? = null,
     onSignInAsDemo: (() -> Unit)? = null
 ) {
     var email by remember { mutableStateOf("") }
@@ -334,6 +352,30 @@ private fun FullScreenSignInForm(
             Text("အကောင့်ဝင်မည်", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
         }
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Divider(modifier = Modifier.weight(1f))
+            Text(" သို့မဟုတ် ", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 8.dp))
+            Divider(modifier = Modifier.weight(1f))
+        }
+
+        if (onGoogleSignIn != null) {
+            OutlinedButton(
+                onClick = onGoogleSignIn,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = Color.Black)
+            ) {
+                Icon(Icons.Filled.AccountCircle, contentDescription = "Google", tint = RealEstateNavy, modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Google အကောင့်ဖြင့် ဝင်မည် (Google Sign-In)", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+            }
+        }
+
         if (onSignInAsDemo != null) {
             OutlinedButton(
                 onClick = onSignInAsDemo,
@@ -348,14 +390,13 @@ private fun FullScreenSignInForm(
                 Text("အစမ်းသုံး (Demo Acc) ဖြင့် ဝင်မည်", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
             }
         }
-
-
     }
 }
 
 @Composable
 private fun FullScreenSignUpForm(
-    onSignUp: (email: String, pass: String, name: String, phone: String, agency: String) -> Unit,
+    onSignUp: (email: String, pass: String, name: String, phone: String, agency: String, profileImageUri: String?) -> Unit,
+    onGoogleSignIn: (() -> Unit)? = null,
     onSignInAsDemo: (() -> Unit)? = null
 ) {
     var email by remember { mutableStateOf("") }
@@ -363,13 +404,87 @@ private fun FullScreenSignUpForm(
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var agency by remember { mutableStateOf("") }
+    var profileImageUri by remember { mutableStateOf<String?>(null) }
     var isPassVisible by remember { mutableStateOf(false) }
 
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            profileImageUri = uri.toString()
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // Profile Picture Selection Section
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(86.dp)
+                        .clip(CircleShape)
+                        .background(RealEstateNavy.copy(alpha = 0.1f))
+                        .clickable { photoPickerLauncher.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!profileImageUri.isNullOrBlank()) {
+                        PropertyImage(
+                            imageResName = profileImageUri!!,
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(RealEstateNavy),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = (name.take(1).ifBlank { "U" }).uppercase(),
+                                color = RealEstateGold,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Camera Icon Overlay Badge
+                    Surface(
+                        shape = CircleShape,
+                        color = RealEstateGold,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .align(Alignment.BottomEnd)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Filled.AddAPhoto,
+                                contentDescription = "Choose Photo",
+                                tint = RealEstateNavy,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = if (profileImageUri != null) "ဓာတ်ပုံ ရွေးချယ်ပြီးပါပြီ (ပြင်ရန်နှိပ်ပါ)" else "ပရိုဖိုင် ဓာတ်ပုံ ရွေးချယ်ရန် နှိပ်ပါ",
+                    fontSize = 12.sp,
+                    color = RealEstateNavy,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
-            label = { Text("အမည်") },
+            label = { Text("အမည် (Full Name)") },
             leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = RealEstateNavy) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
@@ -426,7 +541,7 @@ private fun FullScreenSignUpForm(
         )
 
         Button(
-            onClick = { onSignUp(email.trim(), password.trim(), name.trim(), phone.trim(), agency.trim()) },
+            onClick = { onSignUp(email.trim(), password.trim(), name.trim(), phone.trim(), agency.trim(), profileImageUri) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
@@ -437,6 +552,21 @@ private fun FullScreenSignUpForm(
             Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = RealEstateGold)
             Spacer(modifier = Modifier.width(10.dp))
             Text("အကောင့် သစ်ပြုလုပ်မည်", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+        }
+
+        if (onGoogleSignIn != null) {
+            OutlinedButton(
+                onClick = onGoogleSignIn,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = Color.Black)
+            ) {
+                Icon(Icons.Filled.AccountCircle, contentDescription = "Google", tint = RealEstateNavy, modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Google အကောင့်ဖြင့် ဝင်မည် (Google Sign-In)", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+            }
         }
 
         if (onSignInAsDemo != null) {

@@ -71,7 +71,7 @@ fun HomeScreen(
     isSignedIn: Boolean = false,
     myListings: List<Property> = emptyList(),
     onSignIn: (email: String, pass: String, onError: (String) -> Unit) -> Unit = { _, _, _ -> },
-    onSignUp: (email: String, pass: String, name: String, phone: String, agency: String, onError: (String) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
+    onSignUp: (email: String, pass: String, name: String, phone: String, agency: String, profileImageUri: String?, onError: (String) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
     onUpdateProfile: (name: String, phone: String, agency: String, onError: (String) -> Unit) -> Unit = { _, _, _, _ -> },
     onSignOut: () -> Unit = {},
     onEditProperty: (Property) -> Unit = {},

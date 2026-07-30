@@ -28,8 +28,32 @@ class PropertyRepository(
 
     val firebaseService = FirebaseService(context)
 
-    // Room DB Flow for offline access
-    val allProperties: Flow<List<Property>> = propertyDao.getAllProperties()
+    // Primary properties flow: prioritizes live Firestore updates with Room DB offline fallback & favorite state mapping
+    val allProperties: Flow<List<Property>> = combine(
+        firebaseService.observeAllProperties(),
+        propertyDao.getAllProperties()
+    ) { firestoreList, roomList ->
+        if (firestoreList.isNotEmpty()) {
+            val favDocIds = roomList.filter { it.isFavorite && it.docId.isNotBlank() }.map { it.docId }.toSet()
+            val favTitles = roomList.filter { it.isFavorite && it.docId.isBlank() }.map { "${it.title}_${it.agentPhone}" }.toSet()
+
+            firestoreList.map { prop ->
+                val isFav = (prop.docId.isNotBlank() && favDocIds.contains(prop.docId)) ||
+                        favTitles.contains("${prop.title}_${prop.agentPhone}")
+                val localMatch = roomList.firstOrNull { 
+                    (it.docId.isNotBlank() && it.docId == prop.docId) ||
+                    (it.title == prop.title && it.agentPhone == prop.agentPhone)
+                }
+                prop.copy(
+                    id = localMatch?.id ?: prop.id,
+                    isFavorite = isFav
+                )
+            }
+        } else {
+            roomList
+        }
+    }
+
     val favoriteProperties: Flow<List<Property>> = propertyDao.getFavoriteProperties()
 
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
@@ -62,23 +86,36 @@ class PropertyRepository(
             }
         }
 
-        // Start Realtime Firestore Listener to sync Firestore properties -> Room DB
+        // Realtime Firestore Listener to keep local Room DB updated as offline cache
         externalScope.launch {
             try {
                 firebaseService.observeAllProperties().collectLatest { firestoreList ->
                     if (firestoreList.isNotEmpty()) {
+                        val firestoreDocIds = firestoreList.map { it.docId }.filter { it.isNotBlank() }.toSet()
+
                         for (prop in firestoreList) {
-                            val count = propertyDao.countByTitleAndPhone(prop.title, prop.agentPhone)
-                            if (count == 0) {
-                                propertyDao.insertProperty(prop)
+                            val existing = if (prop.docId.isNotBlank()) {
+                                propertyDao.getPropertyByDocId(prop.docId)
                             } else {
-                                // Update existing local entry with Firestore docId/images
-                                val existing = propertyDao.getPropertyByDocId(prop.docId)
-                                if (existing != null) {
-                                    propertyDao.insertProperty(prop.copy(id = existing.id, isFavorite = existing.isFavorite))
-                                } else {
-                                    propertyDao.insertProperty(prop)
-                                }
+                                propertyDao.getPropertyByTitleAndPhone(prop.title, prop.agentPhone)
+                            }
+                            if (existing != null) {
+                                propertyDao.insertProperty(
+                                    prop.copy(
+                                        id = existing.id,
+                                        isFavorite = existing.isFavorite
+                                    )
+                                )
+                            } else {
+                                propertyDao.insertProperty(prop)
+                            }
+                        }
+
+                        // Purge items from Room cache if they were deleted on Firestore
+                        val localProperties = propertyDao.getAllPropertiesList()
+                        for (localProp in localProperties) {
+                            if (localProp.docId.isNotBlank() && !firestoreDocIds.contains(localProp.docId)) {
+                                propertyDao.deleteProperty(localProp.id)
                             }
                         }
                     }

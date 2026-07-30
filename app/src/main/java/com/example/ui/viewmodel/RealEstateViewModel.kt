@@ -75,13 +75,14 @@ class RealEstateViewModel(application: Application) : AndroidViewModel(applicati
         name: String,
         phone: String,
         agency: String,
+        profileImageUri: String? = null,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
         viewModelScope.launch {
             isLoading.value = true
             loadingMessage.value = "အကောင့် သစ်ပြုလုပ်နေပါသည်..."
-            val result = repository.firebaseService.signUpWithEmail(email, pass, name, phone, agency)
+            val result = repository.firebaseService.signUpWithEmail(email, pass, name, phone, agency, profileImageUri)
             isLoading.value = false
             if (result.isSuccess) {
                 onSuccess()
@@ -107,6 +108,27 @@ class RealEstateViewModel(application: Application) : AndroidViewModel(applicati
                 onSuccess()
             } else {
                 val err = result.exceptionOrNull()?.localizedMessage ?: "အကောင့် ဝင်ရောက်ခြင်း မအောင်မြင်ပါ"
+                onError(err)
+            }
+        }
+    }
+
+    fun signInWithGoogle(
+        email: String = "user.google@gmail.com",
+        name: String = "Google User",
+        photoUrl: String = "",
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            isLoading.value = true
+            loadingMessage.value = "Google အကောင့်ဖြင့် ဝင်ရောက်နေပါသည်..."
+            val result = repository.firebaseService.signInWithGoogle(email, name, photoUrl)
+            isLoading.value = false
+            if (result.isSuccess) {
+                onSuccess()
+            } else {
+                val err = result.exceptionOrNull()?.localizedMessage ?: "Google sign in failed"
                 onError(err)
             }
         }
