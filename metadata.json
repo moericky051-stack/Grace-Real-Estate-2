@@ -1,0 +1,8 @@
+{
+  "name": "Grace Real Estate",
+  "description": "Comprehensive real estate app for buying, selling, and renting properties in Myanmar with local filters, property posting, calculator, and saved favorites.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
